@@ -4,4 +4,4 @@ A toy terminal-based editor written in [Roc](https://www.roc-lang.org).
 
 The editor is based on the online booklet [Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo).
 
-I created a small tui package, based on the rust crate [termion](https://crates.io/crates/termion), which the editor uses.
+I created a small tui package called rocterm (please give me a better one :D). It is based on the rust crate [termion](https://crates.io/crates/termion), which the editor uses.
