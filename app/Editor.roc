@@ -19,6 +19,7 @@ Editor : {
     screenRows : U16,
     screenColumns : U16,
     rowOffset : U16,
+    columnOffset : U16,
     cursorX : U16,
     cursorY : U16,
     rows: List Row,
@@ -43,6 +44,7 @@ init = \{} ->
         screenRows: 20,
         screenColumns: 50,
         rowOffset: 0,
+        columnOffset: 0,
         cursorX: 0,
         cursorY: 0,
         rows,
@@ -71,15 +73,31 @@ update = \editor, event -> Task.ok (
 
 scroll : Editor -> Editor
 scroll = \editor ->
-    editor1 =
-        if editor.cursorY < editor.rowOffset then
-            { editor & rowOffset: editor.cursorY }
+    scrollUp : Editor -> Editor
+    scrollUp = \ed ->
+        if ed.cursorY < ed.rowOffset then
+            { ed & rowOffset: ed.cursorY }
         else
-            editor
-    if editor1.cursorY >= editor1.rowOffset + editor1.screenRows then
-        { editor1 & rowOffset: editor1.cursorY - editor1.screenRows + 1 }
-    else
-        editor1
+            ed
+    scrollDown : Editor -> Editor
+    scrollDown = \ed ->
+        if ed.cursorY >= ed.rowOffset + ed.screenRows then
+            { ed & rowOffset: ed.cursorY - ed.screenRows + 1 }
+        else
+            ed
+    scrollLeft : Editor -> Editor
+    scrollLeft = \ed ->
+        if ed.cursorX < ed.columnOffset then
+            { ed & columnOffset: ed.cursorX + 0 } # for some reason without `+ 0` doesn't work
+        else
+            ed
+    scrollRight : Editor -> Editor
+    scrollRight = \ed ->
+        if ed.cursorX >= ed.columnOffset + ed.screenColumns then
+            { ed & columnOffset: ed.cursorX - ed.screenColumns + 1 }
+        else
+            ed
+    editor |> scrollUp |> scrollDown |> scrollLeft |> scrollRight
 
 moveCursorMany : Editor, [Left, Right, Up, Down], U16 -> Editor
 moveCursorMany = \editor, direction, times ->
@@ -90,27 +108,44 @@ moveCursorMany = \editor, direction, times ->
 
 moveCursor : Editor, [Left, Right, Up, Down] -> Editor
 moveCursor = \editor, direction ->
-    when direction is
-        Left ->
-            if editor.cursorX > 0 then
-                { editor & cursorX: editor.cursorX - 1 }
+    move : Editor -> Editor
+    move = \ed ->
+        when direction is
+            Left ->
+                if ed.cursorX > 0 then
+                    newX = ed.cursorX - 1
+                    { ed & cursorX: newX }
+                else
+                    ed
+            Right ->
+                when List.get ed.rows (Num.intCast ed.cursorY) is
+                    Ok row if Num.intCast ed.cursorX < List.len row.chars ->
+                        newX = ed.cursorX + 1
+                        { ed & cursorX: newX }
+                    _ ->
+                        ed
+            Up ->
+                if ed.cursorY > 0 then
+                    { ed & cursorY: ed.cursorY - 1 }
+                else
+                    ed
+            Down ->
+                if ed.cursorY < Num.intCast (List.len ed.rows) - 1 then
+                    { ed & cursorY: ed.cursorY + 1 }
+                else
+                    ed
+    snap : Editor -> Editor
+    snap = \ed ->
+        length =
+            when List.get ed.rows (Num.intCast ed.cursorY) is
+                Ok row -> Num.intCast (List.len row.chars)
+                Err _ -> 0
+            if ed.cursorX > length then
+                { ed & cursorX: length }
             else
-                editor
-        Right ->
-            if editor.cursorX < editor.screenColumns - 1 then
-                { editor & cursorX: editor.cursorX + 1 }
-            else
-                editor
-        Up ->
-            if editor.cursorY > 0 then
-                { editor & cursorY: editor.cursorY - 1 }
-            else
-                editor
-        Down ->
-            if editor.cursorY < Num.intCast (List.len editor.rows) - 1 then
-                { editor & cursorY: editor.cursorY + 1 }
-            else
-                editor
+                ed
+
+    editor |> move |> snap
 
 display : Editor -> Task Str *
 display = \editor ->
@@ -118,7 +153,7 @@ display = \editor ->
         hide,
         goto { row: 1, column: 1 },
         drawRows editor,
-        goto { row: editor.cursorY - editor.rowOffset + 1, column: editor.cursorX + 1 },
+        goto { row: editor.cursorY - editor.rowOffset + 1, column: editor.cursorX - editor.columnOffset + 1 },
         show,
     ]
     |> Str.joinWith ""
@@ -159,9 +194,13 @@ drawRows = \editor ->
                 ]
                 |> Str.joinWith ""
             else
-                when editor.rows |> List.get (Num.intCast fileRow) |> Result.try (\{ chars } -> chars |> List.takeFirst (Num.intCast editor.screenColumns) |> Str.fromUtf8) is
+                row =
+                    when List.get editor.rows (Num.intCast fileRow) is
+                        Ok r -> r
+                        Err _ -> crash "unreachable (in drawRows row get)"
+                when row.chars |> List.sublist { start: Num.intCast editor.columnOffset, len: Num.intCast editor.screenColumns } |> Str.fromUtf8 is
                     Ok s -> s
-                    Err _ -> crash "unreachable (in drawRows line show)"),
+                    Err _ -> crash "unreachable (in drawRows row render)"),
             untilNewLine,
             if y < editor.screenRows - 1 then "\r\n" else "",
         ]
