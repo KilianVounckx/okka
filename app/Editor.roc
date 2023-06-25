@@ -79,7 +79,11 @@ update = \editor, event -> Task.ok (
                     direction = if key == PageUp then Up else Down
                     Continue (scroll (moveCursorMany editor1 direction times))
                 Home -> Continue (scroll { editor & cursorX: 0 })
-                End -> Continue (scroll { editor & cursorX: editor.screenColumns - 1 })
+                End -> Continue (scroll (
+                    when List.get editor.rows (Num.intCast editor.cursorY) is
+                        Ok row -> { editor & cursorX: Num.intCast (List.len row.chars) }
+                        Err _ -> editor
+                ))
                 _ -> Continue editor
         _ -> Continue (scroll editor)
 )
