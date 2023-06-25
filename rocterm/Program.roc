@@ -37,22 +37,29 @@ run = \{ init, update, display } ->
 
 runWithTasks : ProgramWithTasks * err -> Task {} err
 runWithTasks = \{ init, update, display } ->
-    {} <- enableRawMode |> Task.await
+    task =
+        {} <- enableRawMode |> Task.await
 
-    initialWorld <- init {} |> Task.await
-    {} <-
-        Task.loop initialWorld \world ->
-            rendered <- display world |> Task.await
-            {} <- rendered |> write |> Task.await
-            eventBytes <- bytes |> Task.await
-            updatedWorld <- update world (fromBytes eventBytes) |> Task.await
-            Task.ok
-                (when updatedWorld is
-                    Continue newWorld -> Step newWorld
-                    Exit -> Done {})
-        |> Task.await
+        initialWorld <- init {} |> Task.await
+        {} <-
+            Task.loop initialWorld \world ->
+                rendered <- display world |> Task.await
+                {} <- rendered |> write |> Task.await
+                eventBytes <- bytes |> Task.await
+                updatedWorld <- update world (fromBytes eventBytes) |> Task.await
+                Task.ok
+                    (when updatedWorld is
+                        Continue newWorld -> Step newWorld
+                        Exit -> Done {})
+            |> Task.await
 
-    {} <- write (Str.joinWith [all, goto { row: 1, column: 1 }] "") |> Task.await
-    {} <- disableRawMode |> Task.await
+        {} <- write (Str.joinWith [all, goto { row: 1, column: 1 }] "") |> Task.await
+        {} <- disableRawMode |> Task.await
 
-    Task.ok {}
+        Task.ok {}
+    Task.attempt task \result ->
+        when result is
+            Ok {} -> Task.ok {}
+            Err err ->
+                {} <- disableRawMode |> Task.await
+                Task.err err

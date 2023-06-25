@@ -13,6 +13,7 @@ interface Editor
         rocterm.Clear.{ untilNewLine },
         rocterm.Cursor.{ goto, hide, show },
         rocterm.Event.{ Event },
+        rocterm.Style.{ invert, reset },
         Row.{ Row },
     ]
 
@@ -26,6 +27,7 @@ Editor : {
     renderX : U16,
     rows : List Row,
     filename : [Filename Str, NoFilename],
+    statusMessage : Str,
 }
 
 init : {} -> Task Editor [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
@@ -43,7 +45,7 @@ init = \{} ->
         |> Task.await
 
     Task.ok {
-        screenRows: 20,
+        screenRows: 20 - 2,
         screenColumns: 50,
         rowOffset: 0,
         columnOffset: 0,
@@ -52,6 +54,7 @@ init = \{} ->
         renderX: 0,
         rows,
         filename,
+        statusMessage: "HELP: Ctrl-Q = quit",
     }
 
 openFile : Str -> Task (List Row) [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
@@ -202,6 +205,8 @@ display = \editor ->
         hide,
         goto { row: 1, column: 1 },
         drawRows editor,
+        drawStatusBar editor,
+        drawMessageBar editor,
         goto { row: editor.cursorY - editor.rowOffset + 1, column: editor.renderX - editor.columnOffset + 1 },
         show,
     ]
@@ -245,7 +250,47 @@ drawRows = \editor ->
                         Err _ -> crash "unreachable (in drawRows row render)"
             ),
             untilNewLine,
-            if y < editor.screenRows - 1 then "\r\n" else "",
+            "\r\n",
         ]
         |> Str.joinWith ""
+    |> Str.joinWith ""
+
+drawStatusBar : Editor -> Str
+drawStatusBar = \editor ->
+    [
+        invert,
+        (
+            leftStatus =
+                filename = when editor.filename is
+                    Filename name -> name
+                    NoFilename -> "[No Name]"
+                numLines = Num.toStr (List.len editor.rows)
+                fullStatus = "\(filename) - \(numLines) lines"
+                when fullStatus |> Str.toUtf8 |> List.takeFirst (Num.intCast editor.screenColumns) |> Str.fromUtf8 is
+                    Ok s -> s
+                    Err _ -> crash "unreachable (in drawRows row render)"
+            rightStatus =
+                line = Num.toStr editor.cursorY
+                numLines = Num.toStr (List.len editor.rows)
+                "\(line)/\(numLines)"
+            if Str.countUtf8Bytes leftStatus + Str.countUtf8Bytes rightStatus >= Num.intCast editor.screenColumns then
+                padding = Str.repeat " " (Num.intCast editor.screenColumns - Str.countUtf8Bytes leftStatus)
+                "\(leftStatus)\(padding)"
+            else
+                padding = Str.repeat " " (Num.intCast editor.screenColumns - Str.countUtf8Bytes leftStatus - Str.countUtf8Bytes rightStatus)
+                "\(leftStatus)\(padding)\(rightStatus)"
+        ),
+        reset,
+        "\r\n",
+    ]
+    |> Str.joinWith ""
+
+drawMessageBar : Editor -> Str
+drawMessageBar = \editor ->
+    [
+        untilNewLine,
+        (when editor.statusMessage |> Str.toUtf8 |> List.takeFirst (Num.intCast editor.screenColumns) |> Str.fromUtf8 is
+            Ok s -> s
+            Err _ -> crash "unreachable (in drawRows row render)"),
+    ]
     |> Str.joinWith ""

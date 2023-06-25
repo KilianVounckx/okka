@@ -5,6 +5,7 @@ package "rocterm"
         Cursor,
         Event,
         Program,
+        Style,
     ]
     packages {
         cli: "../basic-cli/src/main.roc",
