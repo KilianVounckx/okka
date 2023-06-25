@@ -13,6 +13,7 @@ interface Editor
         rocterm.Clear.{ untilNewLine },
         rocterm.Cursor.{ goto, hide, show },
         rocterm.Event.{ Event },
+        Row.{ Row },
     ]
 
 Editor : {
@@ -22,12 +23,9 @@ Editor : {
     columnOffset : U16,
     cursorX : U16,
     cursorY : U16,
+    renderX : U16,
     rows: List Row,
     filename: [Filename Str, NoFilename],
-}
-
-Row : {
-    chars: List U8,
 }
 
 init : {} -> Task Editor [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
@@ -47,9 +45,18 @@ init = \{} ->
         columnOffset: 0,
         cursorX: 0,
         cursorY: 0,
+        renderX: 0,
         rows,
         filename,
     }
+
+openFile : Str -> Task (List Row) [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
+openFile = \filename ->
+    contents <- filename |> fromStr |> readUtf8 |> Task.await
+    contents
+    |> Str.split "\n"
+    |> List.map Row.fromStr
+    |> Task.ok
 
 update : Editor, Event -> Task [Continue Editor, Exit] *
 update = \editor, event -> Task.ok (
@@ -73,6 +80,11 @@ update = \editor, event -> Task.ok (
 
 scroll : Editor -> Editor
 scroll = \editor ->
+    setRenderX : Editor -> Editor
+    setRenderX = \ed ->
+        when List.get ed.rows (Num.intCast ed.cursorY) is
+            Ok row -> { ed & renderX: Row.cursorXToRenderX row ed.cursorX }
+            Err _ -> { ed & renderX: 0 }
     scrollUp : Editor -> Editor
     scrollUp = \ed ->
         if ed.cursorY < ed.rowOffset then
@@ -87,17 +99,17 @@ scroll = \editor ->
             ed
     scrollLeft : Editor -> Editor
     scrollLeft = \ed ->
-        if ed.cursorX < ed.columnOffset then
-            { ed & columnOffset: ed.cursorX + 0 } # for some reason without `+ 0` doesn't work
+        if ed.renderX < ed.columnOffset then
+            { ed & columnOffset: ed.renderX + 0 } # for some reason without `+ 0` doesn't work
         else
             ed
     scrollRight : Editor -> Editor
     scrollRight = \ed ->
-        if ed.cursorX >= ed.columnOffset + ed.screenColumns then
-            { ed & columnOffset: ed.cursorX - ed.screenColumns + 1 }
+        if ed.renderX >= ed.columnOffset + ed.screenColumns then
+            { ed & columnOffset: ed.renderX - ed.screenColumns + 1 }
         else
             ed
-    editor |> scrollUp |> scrollDown |> scrollLeft |> scrollRight
+    editor |> setRenderX |> scrollUp |> scrollDown |> scrollLeft |> scrollRight
 
 moveCursorMany : Editor, [Left, Right, Up, Down], U16 -> Editor
 moveCursorMany = \editor, direction, times ->
@@ -163,18 +175,10 @@ display = \editor ->
         hide,
         goto { row: 1, column: 1 },
         drawRows editor,
-        goto { row: editor.cursorY - editor.rowOffset + 1, column: editor.cursorX - editor.columnOffset + 1 },
+        goto { row: editor.cursorY - editor.rowOffset + 1, column: editor.renderX - editor.columnOffset + 1 },
         show,
     ]
     |> Str.joinWith ""
-    |> Task.ok
-
-openFile : Str -> Task (List Row) [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
-openFile = \filename ->
-    contents <- filename |> fromStr |> readUtf8 |> Task.await
-    contents
-    |> Str.split "\n"
-    |> List.map \line -> { chars: Str.toUtf8 line }
     |> Task.ok
 
 drawRows : Editor -> Str
@@ -208,7 +212,7 @@ drawRows = \editor ->
                     when List.get editor.rows (Num.intCast fileRow) is
                         Ok r -> r
                         Err _ -> crash "unreachable (in drawRows row get)"
-                when row.chars |> List.sublist { start: Num.intCast editor.columnOffset, len: Num.intCast editor.screenColumns } |> Str.fromUtf8 is
+                when row.render |> List.sublist { start: Num.intCast editor.columnOffset, len: Num.intCast editor.screenColumns } |> Str.fromUtf8 is
                     Ok s -> s
                     Err _ -> crash "unreachable (in drawRows row render)"),
             untilNewLine,
