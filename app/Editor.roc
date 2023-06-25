@@ -115,13 +115,23 @@ moveCursor = \editor, direction ->
                 if ed.cursorX > 0 then
                     newX = ed.cursorX - 1
                     { ed & cursorX: newX }
+                else if ed.cursorY > 0 then
+                    newY = ed.cursorY - 1
+                    row =
+                        when List.get editor.rows (Num.intCast newY) is
+                            Ok r -> r
+                            Err _ -> crash "unreachable (in moveCursor left at start of line)"
+                    { ed & cursorY: newY, cursorX: Num.intCast (List.len row.chars) }
                 else
                     ed
             Right ->
                 when List.get ed.rows (Num.intCast ed.cursorY) is
-                    Ok row if Num.intCast ed.cursorX < List.len row.chars ->
-                        newX = ed.cursorX + 1
-                        { ed & cursorX: newX }
+                    Ok row ->
+                        if Num.intCast ed.cursorX < List.len row.chars then
+                            newX = ed.cursorX + 1
+                            { ed & cursorX: newX }
+                        else
+                            { ed & cursorY: ed.cursorY + 1, cursorX: 0 }
                     _ ->
                         ed
             Up ->
