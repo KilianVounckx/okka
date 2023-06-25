@@ -69,9 +69,15 @@ update = \editor, event -> Task.ok (
                 Up -> Continue (scroll (moveCursor editor Up))
                 Down -> Continue (scroll (moveCursor editor Down))
                 PageUp | PageDown ->
-                    times = editor.screenRows
+                    editor1 =
+                        if key == PageUp then
+                            { editor & cursorY: editor.rowOffset + 0 } # for some reason without `+ 0` doesn't work
+                        else
+                            { editor & cursorY: Num.min (Num.intCast (List.len editor.rows)) (editor.rowOffset + editor.screenRows - 1) }
+
+                    times = editor1.screenRows
                     direction = if key == PageUp then Up else Down
-                    Continue (scroll (moveCursorMany editor direction times))
+                    Continue (scroll (moveCursorMany editor1 direction times))
                 Home -> Continue (scroll { editor & cursorX: 0 })
                 End -> Continue (scroll { editor & cursorX: editor.screenColumns - 1 })
                 _ -> Continue editor
