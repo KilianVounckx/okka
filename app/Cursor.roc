@@ -38,11 +38,11 @@ right = \x ->
     xStr = Num.toStr x
     "\u(1b)[\(xStr)C"
 
-goto : U16, U16 -> Str
-goto = \x, y ->
-    xStr = Num.toStr x
-    yStr = Num.toStr y
-    "\u(1b)[\(yStr);\(xStr)H"
+goto : { row : U16, column : U16 } -> Str
+goto = \{ row, column } ->
+    y = Num.toStr row
+    x = Num.toStr column
+    "\u(1b)[\(y);\(x)H"
 
 hide : Str
 hide = "\u(1b)[?25l"

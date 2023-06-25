@@ -21,7 +21,12 @@ main =
         Task.loop (initialWorld {}) \world ->
             {} <- display world |> Stdout.write |> Task.await
             bytes <- Stdin.bytes |> Task.await
-            Task.ok (update world (Event.fromBytes bytes))
+            Task.ok
+                (
+                    when update world (Event.fromBytes bytes) is
+                        Continue newWorld -> Step newWorld
+                        Exit -> Done {}
+                )
         |> Task.await
 
     {} <- Tty.disableRawMode |> Task.await
@@ -36,117 +41,145 @@ initialWorld = \{} -> {
     toPrint: "Initial",
 }
 
-update : World, Event -> [Step World, Done {}]
-update = \{}, event ->
+update : World, Event -> [Continue World, Exit]
+update = \world, event ->
     when event is
         Key key ->
             when key is
-                Ctrl 'q' -> Done {}
+                Ctrl 'q' -> Exit
                 F f ->
-                    Step {
-                        toPrint: "F: " |> Str.concat (Num.toStr f),
-                    }
+                    Continue
+                        { world &
+                            toPrint: "F: " |> Str.concat (Num.toStr f),
+                        }
 
                 Return ->
-                    Step {
-                        toPrint: "enter",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "enter",
+                        }
 
                 Tab ->
-                    Step {
-                        toPrint: "tab",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "tab",
+                        }
 
                 Char c ->
-                    Step {
-                        toPrint: Str.fromUtf8 [c] |> Result.withDefault "No utf8 char",
-                    }
+                    Continue
+                        { world &
+                            toPrint: Str.fromUtf8 [c] |> Result.withDefault "No utf8 char",
+                        }
 
                 Ctrl c ->
-                    Step {
-                        toPrint: "Ctrl: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "Ctrl: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl",
+                        }
 
                 Alt c ->
-                    Step {
-                        toPrint: "Alt: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "Alt: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl",
+                        }
 
                 Left ->
-                    Step {
-                        toPrint: "left",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "left",
+                        }
 
                 Right ->
-                    Step {
-                        toPrint: "right",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "right",
+                        }
 
                 Up ->
-                    Step {
-                        toPrint: "up",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "up",
+                        }
 
                 Down ->
-                    Step {
-                        toPrint: "down",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "down",
+                        }
 
                 Home ->
-                    Step {
-                        toPrint: "home",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "home",
+                        }
 
                 End ->
-                    Step {
-                        toPrint: "end",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "end",
+                        }
 
                 PageUp ->
-                    Step {
-                        toPrint: "pageup",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "pageup",
+                        }
 
                 PageDown ->
-                    Step {
-                        toPrint: "pagedown",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "pagedown",
+                        }
 
                 BackTab ->
-                    Step {
-                        toPrint: "backtab",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "backtab",
+                        }
 
                 Esc ->
-                    Step {
-                        toPrint: "escape",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "escape",
+                        }
 
                 Backspace ->
-                    Step {
-                        toPrint: "backspace",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "backspace",
+                        }
 
                 Delete ->
-                    Step {
-                        toPrint: "delete",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "delete",
+                        }
 
                 Insert ->
-                    Step {
-                        toPrint: "insert",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "insert",
+                        }
 
                 Null ->
-                    Step {
-                        toPrint: "null",
-                    }
+                    Continue
+                        { world &
+                            toPrint: "null",
+                        }
 
         Unsupported _ ->
-            Step {
-                toPrint: "unsupported",
-            }
+            Continue
+                { world &
+                    toPrint: "unsupported",
+                }
 
 display : World -> Str
 display = \{ toPrint } ->
-    Str.joinWith [Clear.all, Cursor.goto 1 1, toPrint] ""
+    Str.joinWith
+        [
+            Clear.all,
+            Cursor.goto { row: 1, column: 1 },
+            toPrint,
+            Cursor.goto { row: 3, column: 3 },
+        ]
+        ""
