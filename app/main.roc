@@ -1,7 +1,5 @@
 app "okka"
     packages {
-        # cli: "https://github.com/roc-lang/basic-cli/releases/download/0.4.0/DI4lqn7LIZs8ZrCDUgLK-tHHpQmxGF1ZrlevRKq5LXk.tar.br",
-        # cli: "https://github.com/roc-lang/basic-cli/releases/download/0.4.0/N2H7rEuSe0dl6MJunQsAF7spj23mqj9SBd5kgYVjVz8.tar.gz",
         cli: "../basic-cli/src/main.roc",
     }
     imports [
@@ -11,7 +9,7 @@ app "okka"
         cli.Tty,
         Clear,
         Cursor,
-        Key.{ Key },
+        Event.{ Event },
     ]
     provides [main] to cli
 
@@ -22,8 +20,8 @@ main =
     {} <-
         Task.loop (initialWorld {}) \world ->
             {} <- display world |> Stdout.write |> Task.await
-            event <- Stdin.bytes |> Task.await
-            Task.ok (update world (Key.fromBytes event))
+            bytes <- Stdin.bytes |> Task.await
+            Task.ok (update world (Event.fromBytes bytes))
         |> Task.await
 
     {} <- Tty.disableRawMode |> Task.await
@@ -34,66 +32,120 @@ World : {
 }
 
 initialWorld : {} -> World
-initialWorld = \{} ->
-    {
-        toPrint: "Initial",
-    }
+initialWorld = \{} -> {
+    toPrint: "Initial",
+}
 
-update : World, Key -> [Step World, Done {}]
-update = \{}, key ->
-    when key is
-        Ctrl 'q' -> Done {}
-        F f -> Step {
-            toPrint: "F: " |> Str.concat (Num.toStr f),
-        }
-        Return -> Step {
-            toPrint: "enter",
-        }
-        Tab -> Step {
-            toPrint: "tab",
-        }
-        Char c -> Step {
-            toPrint: Str.fromUtf8 [c] |> Result.withDefault "No utf8 char",
-        }
-        Ctrl c -> Step {
-            toPrint: "Ctrl: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl"
-        }
-        Alt c -> Step {
-            toPrint: "Alt: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl"
-        }
-        Left -> Step {
-            toPrint: "left",
-        }
-        Right -> Step {
-            toPrint: "right",
-        }
-        Up -> Step {
-            toPrint: "up",
-        }
-        Down -> Step {
-            toPrint: "down",
-        }
-        Home -> Step {
-            toPrint: "home",
-        }
-        End -> Step {
-            toPrint: "end",
-        }
-        PageUp -> Step {
-            toPrint: "pageup",
-        }
-        PageDown -> Step {
-            toPrint: "pagedown",
-        }
-        BackTab -> Step {
-            toPrint: "backtab",
-        }
-        Esc -> Step {
-            toPrint: "escape",
-        }
-        _ -> Step {
-            toPrint: "No char",
-        }
+update : World, Event -> [Step World, Done {}]
+update = \{}, event ->
+    when event is
+        Key key ->
+            when key is
+                Ctrl 'q' -> Done {}
+                F f ->
+                    Step {
+                        toPrint: "F: " |> Str.concat (Num.toStr f),
+                    }
+
+                Return ->
+                    Step {
+                        toPrint: "enter",
+                    }
+
+                Tab ->
+                    Step {
+                        toPrint: "tab",
+                    }
+
+                Char c ->
+                    Step {
+                        toPrint: Str.fromUtf8 [c] |> Result.withDefault "No utf8 char",
+                    }
+
+                Ctrl c ->
+                    Step {
+                        toPrint: "Ctrl: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl",
+                    }
+
+                Alt c ->
+                    Step {
+                        toPrint: "Alt: " |> Str.appendScalar (Num.intCast c) |> Result.withDefault "No utf8 ctrl",
+                    }
+
+                Left ->
+                    Step {
+                        toPrint: "left",
+                    }
+
+                Right ->
+                    Step {
+                        toPrint: "right",
+                    }
+
+                Up ->
+                    Step {
+                        toPrint: "up",
+                    }
+
+                Down ->
+                    Step {
+                        toPrint: "down",
+                    }
+
+                Home ->
+                    Step {
+                        toPrint: "home",
+                    }
+
+                End ->
+                    Step {
+                        toPrint: "end",
+                    }
+
+                PageUp ->
+                    Step {
+                        toPrint: "pageup",
+                    }
+
+                PageDown ->
+                    Step {
+                        toPrint: "pagedown",
+                    }
+
+                BackTab ->
+                    Step {
+                        toPrint: "backtab",
+                    }
+
+                Esc ->
+                    Step {
+                        toPrint: "escape",
+                    }
+
+                Backspace ->
+                    Step {
+                        toPrint: "backspace",
+                    }
+
+                Delete ->
+                    Step {
+                        toPrint: "delete",
+                    }
+
+                Insert ->
+                    Step {
+                        toPrint: "insert",
+                    }
+
+                Null ->
+                    Step {
+                        toPrint: "null",
+                    }
+
+        Unsupported _ ->
+            Step {
+                toPrint: "unsupported",
+            }
 
 display : World -> Str
 display = \{ toPrint } ->
