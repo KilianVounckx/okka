@@ -1,36 +1,23 @@
 app "okka"
     packages {
         cli: "../basic-cli/src/main.roc",
+        rocterm: "../rocterm/main.roc",
     }
     imports [
-        cli.Stdin,
-        cli.Stdout,
         cli.Task.{ Task },
-        cli.Tty,
-        Clear,
-        Cursor,
-        Event.{ Event },
+        rocterm.Clear,
+        rocterm.Cursor,
+        rocterm.Event.{ Event },
+        rocterm.Program,
     ]
     provides [main] to cli
 
 main : Task {} I32
-main =
-    {} <- Tty.enableRawMode |> Task.await
-
-    {} <-
-        Task.loop (initialWorld {}) \world ->
-            {} <- display world |> Stdout.write |> Task.await
-            bytes <- Stdin.bytes |> Task.await
-            Task.ok
-                (
-                    when update world (Event.fromBytes bytes) is
-                        Continue newWorld -> Step newWorld
-                        Exit -> Done {}
-                )
-        |> Task.await
-
-    {} <- Tty.disableRawMode |> Task.await
-    Task.ok {}
+main = Program.run {
+    init: initialWorld,
+    update,
+    display,
+}
 
 World : {
     toPrint : Str,

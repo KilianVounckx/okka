@@ -3,5 +3,6 @@
 !.gitignore
 
 !app/**/*.roc
+!rocterm/**/*.roc
 
 !basic-cli/**/*
