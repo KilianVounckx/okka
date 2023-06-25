@@ -7,8 +7,8 @@ interface Row
     imports []
 
 Row : {
-    chars: List U8,
-    render: List U8,
+    chars : List U8,
+    render : List U8,
 }
 
 fromStr : Str -> Row
@@ -16,7 +16,7 @@ fromStr = \str ->
     chars = Str.toUtf8 str
     row = {
         chars,
-        render: []
+        render: [],
     }
     update row
 
