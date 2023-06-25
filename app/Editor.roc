@@ -18,6 +18,7 @@ interface Editor
 Editor : {
     screenRows : U16,
     screenColumns : U16,
+    rowOffset : U16,
     cursorX : U16,
     cursorY : U16,
     rows: List Row,
@@ -41,6 +42,7 @@ init = \{} ->
     Task.ok {
         screenRows: 20,
         screenColumns: 50,
+        rowOffset: 0,
         cursorX: 0,
         cursorY: 0,
         rows,
@@ -53,19 +55,31 @@ update = \editor, event -> Task.ok (
         Key key ->
             when key is
                 Ctrl 'q' -> Exit
-                Left -> Continue (moveCursor editor Left)
-                Right -> Continue (moveCursor editor Right)
-                Up -> Continue (moveCursor editor Up)
-                Down -> Continue (moveCursor editor Down)
+                Left -> Continue (scroll (moveCursor editor Left))
+                Right -> Continue (scroll (moveCursor editor Right))
+                Up -> Continue (scroll (moveCursor editor Up))
+                Down -> Continue (scroll (moveCursor editor Down))
                 PageUp | PageDown ->
                     times = editor.screenRows
                     direction = if key == PageUp then Up else Down
-                    Continue (moveCursorMany editor direction times)
-                Home -> Continue { editor & cursorX: 0 }
-                End -> Continue { editor & cursorX: editor.screenColumns - 1 }
+                    Continue (scroll (moveCursorMany editor direction times))
+                Home -> Continue (scroll { editor & cursorX: 0 })
+                End -> Continue (scroll { editor & cursorX: editor.screenColumns - 1 })
                 _ -> Continue editor
-        _ -> Continue editor
+        _ -> Continue (scroll editor)
 )
+
+scroll : Editor -> Editor
+scroll = \editor ->
+    editor1 =
+        if editor.cursorY < editor.rowOffset then
+            { editor & rowOffset: editor.cursorY }
+        else
+            editor
+    if editor1.cursorY >= editor1.rowOffset + editor1.screenRows then
+        { editor1 & rowOffset: editor1.cursorY - editor1.screenRows + 1 }
+    else
+        editor1
 
 moveCursorMany : Editor, [Left, Right, Up, Down], U16 -> Editor
 moveCursorMany = \editor, direction, times ->
@@ -93,7 +107,7 @@ moveCursor = \editor, direction ->
             else
                 editor
         Down ->
-            if editor.cursorY < editor.screenRows - 1 then
+            if editor.cursorY < Num.intCast (List.len editor.rows) - 1 then
                 { editor & cursorY: editor.cursorY + 1 }
             else
                 editor
@@ -104,7 +118,7 @@ display = \editor ->
         hide,
         goto { row: 1, column: 1 },
         drawRows editor,
-        goto { row: editor.cursorY + 1, column: editor.cursorX + 1 },
+        goto { row: editor.cursorY - editor.rowOffset + 1, column: editor.cursorX + 1 },
         show,
     ]
     |> Str.joinWith ""
@@ -122,23 +136,32 @@ drawRows : Editor -> Str
 drawRows = \editor ->
     List.range { start: At 0, end: Before editor.screenRows }
     |> List.map \y ->
+        fileRow = y + editor.rowOffset
         [
-            if y == editor.screenRows // 3 then
-                fullWelcome = "Okka editor -- version 0.0.1"
-                welcome =
-                    when fullWelcome |> Str.toUtf8 |> List.takeFirst (Num.intCast editor.screenColumns) |> Str.fromUtf8 is
-                        Ok s -> s
-                        Err _ -> crash "unreachable (in drawRows welcome text)"
-                padding = (Num.intCast editor.screenColumns - Str.countUtf8Bytes welcome) // 2
-                header = if padding > 0 then "~" else " "
+            (if Num.intCast fileRow >= List.len editor.rows then
                 [
-                    header,
-                    Str.repeat " " (padding - 1),
-                    welcome,
+                    if List.isEmpty editor.rows && y == editor.screenRows // 3 then
+                        fullWelcome = "Okka editor -- version 0.0.1"
+                        welcome =
+                            when fullWelcome |> Str.toUtf8 |> List.takeFirst (Num.intCast editor.screenColumns) |> Str.fromUtf8 is
+                                Ok s -> s
+                                Err _ -> crash "unreachable (in drawRows welcome text)"
+                        padding = (Num.intCast editor.screenColumns - Str.countUtf8Bytes welcome) // 2
+                        header = if padding > 0 then "~" else " "
+                        [
+                            header,
+                            Str.repeat " " (padding - 1),
+                            welcome,
+                        ]
+                        |> Str.joinWith ""
+                    else
+                        "~",
                 ]
                 |> Str.joinWith ""
             else
-                "~",
+                when editor.rows |> List.get (Num.intCast fileRow) |> Result.try (\{ chars } -> chars |> List.takeFirst (Num.intCast editor.screenColumns) |> Str.fromUtf8) is
+                    Ok s -> s
+                    Err _ -> crash "unreachable (in drawRows line show)"),
             untilNewLine,
             if y < editor.screenRows - 1 then "\r\n" else "",
         ]
