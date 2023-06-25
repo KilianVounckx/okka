@@ -140,7 +140,7 @@ moveCursor = \editor, direction ->
                 else
                     ed
             Down ->
-                if ed.cursorY < Num.intCast (List.len ed.rows) - 1 then
+                if ed.cursorY < Num.intCast (List.len ed.rows) then
                     { ed & cursorY: ed.cursorY + 1 }
                 else
                     ed
