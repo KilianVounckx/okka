@@ -1,0 +1,3 @@
+[submodule "basic-cli"]
+	path = basic-cli
+	url = https://github.com/roc-lang/basic-cli/
