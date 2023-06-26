@@ -4,6 +4,8 @@ interface Row
         fromStr,
         cursorXToRenderX,
         insertChar,
+        deleteChar,
+        appendChars,
     ]
     imports []
 
@@ -36,6 +38,18 @@ update = \row ->
             else
                 List.append state char
     { row & render }
+
+appendChars : Row, List U8 -> Row
+appendChars = \row, chars ->
+    newChars = List.concat row.chars chars
+    update { row & chars: newChars }
+
+deleteChar : Row, Nat -> Row
+deleteChar = \row, index ->
+    before = List.takeFirst row.chars index
+    after = List.drop row.chars (index + 1)
+    chars = List.concat before after
+    update { row & chars }
 
 insertChar : Row, Nat, U8 -> Row
 insertChar = \row, index, char ->

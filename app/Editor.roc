@@ -141,9 +141,10 @@ update = \editor, event ->
                 Char char -> Task.ok (Continue (resetQuitTimes (scroll (insertChar editor char))))
                 Tab -> Task.ok (Continue (resetQuitTimes (scroll (insertChar editor '\t'))))
 
-                Backspace | Delete | Ctrl 'h' ->
-                    # TODO
-                    Task.ok (Continue  editor)
+                Delete ->
+                    editor |> moveCursor Right |> deleteChar |> scroll |> resetQuitTimes |> Continue |> Task.ok
+                Backspace | Ctrl 'h' ->
+                    editor |> deleteChar |> scroll |> resetQuitTimes |> Continue |> Task.ok
                 Return ->
                     # TODO
                     Task.ok (Continue  editor)
@@ -153,6 +154,33 @@ update = \editor, event ->
                 _ -> Task.ok (Continue  editor)
 
         _ -> Task.ok (Continue editor)
+
+deleteRow : Editor, Nat -> Editor
+deleteRow = \editor, index ->
+    before = List.takeFirst editor.rows index
+    after = List.drop editor.rows (index + 1)
+    newRows = List.concat before after
+    { editor & rows: newRows, dirty: Bool.true }
+
+deleteChar : Editor -> Editor
+deleteChar = \editor ->
+    when List.get editor.rows (Num.intCast editor.cursorY) is
+        Ok row ->
+            if editor.cursorX > 0 then
+                newRow = Row.deleteChar row (Num.intCast editor.cursorX - 1)
+                newRows = List.set editor.rows (Num.intCast editor.cursorY) newRow
+                { editor & rows: newRows, cursorX: editor.cursorX - 1, dirty: Bool.true }
+            else if editor.cursorY > 0 then
+                when List.get editor.rows (Num.intCast editor.cursorY - 1) is
+                    Ok rowBelow ->
+                        cursorX = Num.intCast (List.len rowBelow.chars)
+                        newRowBelow = Row.appendChars rowBelow row.chars
+                        newRows = List.set editor.rows (Num.intCast editor.cursorY - 1) newRowBelow
+                        { editor & cursorX, cursorY: editor.cursorY - 1, rows: newRows, dirty: Bool.true } |> deleteRow (Num.intCast editor.cursorY)
+                    Err _ -> crash "unreachable (in deleteChar rowBelow)"
+            else
+                editor
+        Err _ -> editor
 
 insertChar : Editor, U8 -> Editor
 insertChar = \editor, char ->
