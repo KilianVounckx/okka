@@ -21,6 +21,6 @@ main =
     Task.attempt task \result ->
         when result is
             Ok {} -> Task.ok {}
-            Err _ ->
+            Err (FileReadErr _ _) | Err (FileReadUtf8Err _ _) ->
                 {} <- Stderr.line "Could not read file" |> Task.await
                 Task.err 1

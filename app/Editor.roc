@@ -7,7 +7,7 @@ interface Editor
     ]
     imports [
         cli.Arg.{ list },
-        cli.File.{ ReadErr, readUtf8 },
+        cli.File.{ ReadErr, readUtf8, writeUtf8 },
         cli.Path.{ Path, fromStr },
         cli.Task.{ Task },
         rocterm.Clear.{ untilNewLine },
@@ -28,6 +28,8 @@ Editor : {
     rows : List Row,
     filename : [Filename Str, NoFilename],
     statusMessage : Str,
+    dirty : Bool,
+    quitTimes : U8,
 }
 
 init : {} -> Task Editor [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
@@ -54,7 +56,9 @@ init = \{} ->
         renderX: 0,
         rows,
         filename,
-        statusMessage: "HELP: Ctrl-Q = quit",
+        statusMessage: "HELP: Ctrl-Q = quit | Ctrl-S = save",
+        dirty: Bool.false,
+        quitTimes,
     }
 
 openFile : Str -> Task (List Row) [FileReadErr Path ReadErr, FileReadUtf8Err Path _]
@@ -65,44 +69,115 @@ openFile = \filename ->
     |> List.map Row.fromStr
     |> Task.ok
 
+save : Editor -> Task Editor *
+save = \editor ->
+    when editor.filename is
+        NoFilename -> Task.ok editor
+        Filename filename ->
+            contents = rowsToStr editor
+            result <- filename |> fromStr |> writeUtf8 contents |> Task.attempt
+            when result is
+                Ok {} ->
+                    length = Num.toStr (Str.countUtf8Bytes contents)
+                    Task.ok { editor & statusMessage: "\(length) bytes written to disk", dirty: Bool.false }
+                Err (FileWriteErr _ _) ->
+                    Task.ok { editor & statusMessage: "Can't save! I/O error" }
+
+rowsToStr : Editor -> Str
+rowsToStr = \editor ->
+    editor.rows
+    |> List.map \row ->
+        when Str.fromUtf8 row.chars is
+            Ok line -> line
+            Err _ -> crash "unreachable (in rowsToStr fromUtf8)"
+    |> Str.joinWith "\n"
+    |> Str.concat "\n"
+
 update : Editor, Event -> Task [Continue Editor, Exit] *
-update = \editor, event -> Task.ok
-        (
-            when event is
-                Key key ->
-                    when key is
-                        Ctrl 'q' -> Exit
-                        Left -> Continue (scroll (moveCursor editor Left))
-                        Right -> Continue (scroll (moveCursor editor Right))
-                        Up -> Continue (scroll (moveCursor editor Up))
-                        Down -> Continue (scroll (moveCursor editor Down))
-                        PageUp | PageDown ->
-                            editor1 =
-                                if key == PageUp then
-                                    { editor & cursorY: editor.rowOffset + 0 } # for some reason without `+ 0` doesn't work
-                                else
-                                    { editor & cursorY: Num.min (Num.intCast (List.len editor.rows)) (editor.rowOffset + editor.screenRows - 1) }
+update = \editor, event ->
+    resetQuitTimes : Editor -> Editor
+    resetQuitTimes = \ed ->
+        { ed & quitTimes }
+    when event is
+        Key key ->
+            when key is
+                Ctrl 'q' ->
+                    if editor.quitTimes == 0 || !editor.dirty then
+                        Task.ok Exit
+                    else
+                        quitTimesStr = Num.toStr editor.quitTimes
+                        statusMessage = "WARNING!!! File has unsaved changes. Press Ctrl-Q \(quitTimesStr) more times to quit."
+                        Task.ok (Continue (scroll { editor & statusMessage, quitTimes: editor.quitTimes - 1 }))
+                Ctrl 's' -> save editor |> Task.map Continue
 
-                            times = editor1.screenRows
-                            direction = if key == PageUp then Up else Down
-                            Continue (scroll (moveCursorMany editor1 direction times))
+                Left -> Task.ok (Continue (resetQuitTimes (scroll  (moveCursor editor Left))))
+                Right -> Task.ok (Continue (resetQuitTimes (scroll  (moveCursor editor Right))))
+                Up -> Task.ok (Continue (resetQuitTimes (scroll  (moveCursor editor Up))))
+                Down -> Task.ok (Continue (resetQuitTimes (scroll  (moveCursor editor Down))))
+                PageUp | PageDown ->
+                    editor1 =
+                        if key == PageUp then
+                            { editor & cursorY: editor.rowOffset + 0 } # for some reason without `+ 0` doesn't work
+                        else
+                            { editor & cursorY: Num.min (Num.intCast (List.len editor.rows)) (editor.rowOffset + editor.screenRows - 1) }
 
-                        Home -> Continue (scroll { editor & cursorX: 0 })
-                        End ->
-                            Continue
+                    times = editor1.screenRows
+                    direction = if key == PageUp then Up else Down
+                    Task.ok (Continue (resetQuitTimes (scroll  (moveCursorMany editor1 direction times))))
+
+                Home -> Task.ok (Continue (resetQuitTimes (scroll  { editor & cursorX: 0 })))
+                End ->
+                    Task.ok (Continue
+                        (resetQuitTimes (
+                        
+                            scroll
                                 (
-                                    scroll
-                                        (
-                                            when List.get editor.rows (Num.intCast editor.cursorY) is
-                                                Ok row -> { editor & cursorX: Num.intCast (List.len row.chars) }
-                                                Err _ -> editor
-                                        )
+                                    when List.get editor.rows (Num.intCast editor.cursorY) is
+                                        Ok row -> { editor & cursorX: Num.intCast (List.len row.chars) }
+                                        Err _ -> editor
                                 )
+                        )))
 
-                        _ -> Continue editor
+                Char char -> Task.ok (Continue (resetQuitTimes (scroll (insertChar editor char))))
+                Tab -> Task.ok (Continue (resetQuitTimes (scroll (insertChar editor '\t'))))
 
-                _ -> Continue (scroll editor)
-        )
+                Backspace | Delete | Ctrl 'h' ->
+                    # TODO
+                    Task.ok (Continue  editor)
+                Return ->
+                    # TODO
+                    Task.ok (Continue  editor)
+
+                Ctrl 'l' -> Task.ok (Continue  editor)
+
+                _ -> Task.ok (Continue  editor)
+
+        _ -> Task.ok (Continue editor)
+
+insertChar : Editor, U8 -> Editor
+insertChar = \editor, char ->
+    appendIfNeeded : Editor -> Editor
+    appendIfNeeded = \ed ->
+        if Num.intCast ed.cursorY == List.len (ed.rows) then
+            { ed & rows: List.append ed.rows (Row.fromStr "") }
+        else
+            ed
+
+    addChar : Editor -> Editor
+    addChar = \ed ->
+        rows = ed.rows
+        newRows = List.update rows (Num.intCast ed.cursorY) (\row -> Row.insertChar row (Num.intCast ed.cursorX) char)
+        { ed & rows: newRows }
+
+    shiftCursor : Editor -> Editor
+    shiftCursor = \ed ->
+        { ed & cursorX: ed.cursorX + 1 }
+
+    makeDirty : Editor -> Editor
+    makeDirty = \ed ->
+        { ed & dirty: Bool.true }
+
+    editor |> appendIfNeeded |> addChar |> shiftCursor |> makeDirty
 
 scroll : Editor -> Editor
 scroll = \editor ->
@@ -265,7 +340,8 @@ drawStatusBar = \editor ->
                     Filename name -> name
                     NoFilename -> "[No Name]"
                 numLines = Num.toStr (List.len editor.rows)
-                fullStatus = "\(filename) - \(numLines) lines"
+                modified = if editor.dirty then "(modified)" else ""
+                fullStatus = "\(filename) - \(numLines) lines \(modified)"
                 when fullStatus |> Str.toUtf8 |> List.takeFirst (Num.intCast editor.screenColumns) |> Str.fromUtf8 is
                     Ok s -> s
                     Err _ -> crash "unreachable (in drawRows row render)"
@@ -294,3 +370,5 @@ drawMessageBar = \editor ->
             Err _ -> crash "unreachable (in drawRows row render)"),
     ]
     |> Str.joinWith ""
+
+quitTimes = 3
