@@ -1,6 +1,7 @@
 interface Row
     exposes [
         Row,
+        fromChars,
         fromStr,
         cursorXToRenderX,
         insertChar,
@@ -16,7 +17,12 @@ Row : {
 
 fromStr : Str -> Row
 fromStr = \str ->
-    chars = Str.toUtf8 str
+    str
+    |> Str.toUtf8
+    |> fromChars
+
+fromChars : List U8 -> Row
+fromChars = \chars ->
     row = {
         chars,
         render: [],

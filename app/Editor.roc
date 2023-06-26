@@ -146,8 +146,7 @@ update = \editor, event ->
                 Backspace | Ctrl 'h' ->
                     editor |> deleteChar |> scroll |> resetQuitTimes |> Continue |> Task.ok
                 Return ->
-                    # TODO
-                    Task.ok (Continue  editor)
+                    editor |> insertNewLine |> scroll |> resetQuitTimes |> Continue |> Task.ok
 
                 Ctrl 'l' -> Task.ok (Continue  editor)
 
@@ -161,6 +160,29 @@ deleteRow = \editor, index ->
     after = List.drop editor.rows (index + 1)
     newRows = List.concat before after
     { editor & rows: newRows, dirty: Bool.true }
+
+insertRow : Editor, Nat, List U8 -> Editor
+insertRow = \editor, index, chars ->
+    before = List.takeFirst editor.rows index
+    after = List.drop editor.rows index
+    rows = before |> List.append (Row.fromChars chars) |> List.concat after
+    { editor & rows, dirty: Bool.true }
+
+insertNewLine : Editor -> Editor
+insertNewLine = \editor ->
+    (if editor.cursorX == 0 then
+        insertRow editor (Num.intCast editor.cursorY) []
+    else
+        when List.get editor.rows (Num.intCast editor.cursorY) is
+            Ok row ->
+                before = List.takeFirst row.chars (Num.intCast editor.cursorX)
+                after = List.drop row.chars (Num.intCast editor.cursorX)
+                newRow = Row.fromChars before
+                newRows = List.set editor.rows (Num.intCast editor.cursorY) newRow
+                { editor & rows: newRows }
+                |> insertRow (Num.intCast editor.cursorY + 1) after
+            Err _ -> crash "unreachable (in insertNewLine)")
+    |> \ed -> { ed & cursorY: ed.cursorY + 1, cursorX: 0 }
 
 deleteChar : Editor -> Editor
 deleteChar = \editor ->
@@ -187,7 +209,7 @@ insertChar = \editor, char ->
     appendIfNeeded : Editor -> Editor
     appendIfNeeded = \ed ->
         if Num.intCast ed.cursorY == List.len (ed.rows) then
-            { ed & rows: List.append ed.rows (Row.fromStr "") }
+            insertRow editor (List.len editor.rows) []
         else
             ed
 
