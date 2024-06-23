@@ -8,6 +8,7 @@ import cli.Stdout
 import cli.Task exposing [Task]
 import cli.Tty
 
+import okka.Color exposing [Color]
 import okka.Cursor
 import okka.Event exposing [Event]
 
@@ -36,6 +37,7 @@ Model : {
     rows : U16,
     columns : U16,
     cursor : [Show, Hide],
+    color : Color,
     x : U16,
     y : U16,
 }
@@ -45,6 +47,7 @@ init = \{ rows, columns } -> {
     rows,
     columns,
     cursor: Show,
+    color: Red,
     x: 0,
     y: 0,
 }
@@ -67,9 +70,20 @@ update = \model, event ->
         Key Down | Key (Char 'j') ->
             Ok { model & y: Num.min (model.y + 1) (model.rows - 1) }
 
-        Key (Char ' ') -> Ok (toggleCursor model)
+        Key (Char ' ') ->
+            Ok (toggleCursor model)
+
+        Key (Char 'c') ->
+            Ok (toggleColor model)
+
         _ ->
             Ok model
+
+toggleColor : Model -> Model
+toggleColor = \model ->
+    when model.color is
+        Red -> { model & color: Blue }
+        _ -> { model & color: Red }
 
 toggleCursor : Model -> Model
 toggleCursor = \model ->
@@ -80,7 +94,18 @@ toggleCursor = \model ->
 render : Model -> Str
 render = \model ->
     when model.cursor is
-        Show -> Str.joinWith [Cursor.goto { row: model.y, column: model.x }, Cursor.show] ""
+        Show ->
+            Str.joinWith
+                [
+                    Cursor.hide,
+                    Cursor.goto { row: model.y, column: model.x },
+                    Color.background model.color,
+                    " ",
+                    Color.background Reset,
+                    Cursor.show,
+                ]
+                ""
+
         Hide -> Cursor.hide
 
 # https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#window-size-the-hard-way
