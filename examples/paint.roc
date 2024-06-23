@@ -9,12 +9,14 @@ import cli.Task exposing [Task]
 import cli.Tty
 
 import okka.Color exposing [Color]
+import okka.Clear
 import okka.Cursor
 import okka.Event exposing [Event]
 
 main : Task {} _
 main =
     Tty.enableRawMode!
+    Stdout.write! Clear.all
     size = getWindowSize!
     Task.loop! (init size) \model ->
         Stdout.write! (render model)
@@ -31,13 +33,15 @@ main =
 
             Err _ ->
                 Task.ok (Step model)
+    Stdout.write! Cursor.show
     Tty.disableRawMode!
 
 Model : {
     rows : U16,
     columns : U16,
-    cursor : [Show, Hide],
+    brush : [Up, Down],
     color : Color,
+    clear : Bool,
     x : U16,
     y : U16,
 }
@@ -46,38 +50,43 @@ init : { rows : U16, columns : U16 } -> Model
 init = \{ rows, columns } -> {
     rows,
     columns,
-    cursor: Show,
+    brush: Down,
     color: Red,
+    clear: Bool.false,
     x: 0,
     y: 0,
 }
 
 update : Model, Event -> Result Model [Quit]
-update = \model, event ->
+update = \model0, event ->
+    model1 = { model0 & clear: Bool.false }
     when event is
         Key Esc | Key (Char 'q') ->
             Err Quit
 
         Key Left | Key (Char 'h') ->
-            Ok { model & x: Num.subSaturated model.x 1 }
+            Ok { model1 & x: Num.subSaturated model1.x 1 }
 
         Key Right | Key (Char 'l') ->
-            Ok { model & x: Num.min (model.x + 1) (model.columns - 1) }
+            Ok { model1 & x: Num.min (model1.x + 1) (model1.columns - 1) }
 
         Key Up | Key (Char 'k') ->
-            Ok { model & y: Num.subSaturated model.y 1 }
+            Ok { model1 & y: Num.subSaturated model1.y 1 }
 
         Key Down | Key (Char 'j') ->
-            Ok { model & y: Num.min (model.y + 1) (model.rows - 1) }
+            Ok { model1 & y: Num.min (model1.y + 1) (model1.rows - 1) }
 
         Key (Char ' ') ->
-            Ok (toggleCursor model)
+            Ok (toggleBrush model1)
 
         Key (Char 'c') ->
-            Ok (toggleColor model)
+            Ok (toggleColor model1)
+
+        Key Delete ->
+            Ok ({ model1 & clear: Bool.true })
 
         _ ->
-            Ok model
+            Ok model1
 
 toggleColor : Model -> Model
 toggleColor = \model ->
@@ -85,28 +94,37 @@ toggleColor = \model ->
         Red -> { model & color: Blue }
         _ -> { model & color: Red }
 
-toggleCursor : Model -> Model
-toggleCursor = \model ->
-    when model.cursor is
-        Show -> { model & cursor: Hide }
-        Hide -> { model & cursor: Show }
+toggleBrush : Model -> Model
+toggleBrush = \model ->
+    when model.brush is
+        Up -> { model & brush: Down }
+        Down -> { model & brush: Up }
 
 render : Model -> Str
 render = \model ->
-    when model.cursor is
-        Show ->
-            Str.joinWith
-                [
-                    Cursor.hide,
-                    Cursor.goto { row: model.y, column: model.x },
-                    Color.background model.color,
-                    " ",
-                    Color.background Reset,
-                    Cursor.show,
-                ]
-                ""
+    if model.clear then
+        Clear.all
+    else
+        when model.brush is
+            Down ->
+                Str.joinWith
+                    [
+                        Cursor.hide,
+                        Cursor.goto { row: model.y, column: model.x },
+                        Color.background model.color,
+                        " ",
+                        Color.background Reset,
+                    ]
+                    ""
 
-        Hide -> Cursor.hide
+            Up ->
+                Str.joinWith
+                    [
+                        Cursor.hide,
+                        Cursor.goto { row: model.y, column: model.x },
+                        Cursor.show,
+                    ]
+                    ""
 
 # https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#window-size-the-hard-way
 getWindowSize : Task { rows : U16, columns : U16 } _
