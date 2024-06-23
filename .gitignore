@@ -3,5 +3,6 @@
 !.gitignore
 
 !/license
+!/README.md
 !/package/**/*.roc
 !/examples/**/*.roc
