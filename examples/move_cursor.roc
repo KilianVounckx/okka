@@ -35,6 +35,7 @@ main =
 Model : {
     rows : U16,
     columns : U16,
+    cursor : [Show, Hide],
     x : U16,
     y : U16,
 }
@@ -43,6 +44,7 @@ init : { rows : U16, columns : U16 } -> Model
 init = \{ rows, columns } -> {
     rows,
     columns,
+    cursor: Show,
     x: 0,
     y: 0,
 }
@@ -65,13 +67,23 @@ update = \model, event ->
         Key Down | Key (Char 'j') ->
             Ok { model & y: Num.min (model.y + 1) (model.rows - 1) }
 
+        Key (Char ' ') -> Ok (toggleCursor model)
         _ ->
             Ok model
 
+toggleCursor : Model -> Model
+toggleCursor = \model ->
+    when model.cursor is
+        Show -> { model & cursor: Hide }
+        Hide -> { model & cursor: Show }
+
 render : Model -> Str
 render = \model ->
-    Cursor.goto { row: model.y, column: model.x }
+    when model.cursor is
+        Show -> Str.joinWith [Cursor.goto { row: model.y, column: model.x }, Cursor.show] ""
+        Hide -> Cursor.hide
 
+# https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#window-size-the-hard-way
 getWindowSize : Task { rows : U16, columns : U16 } _
 getWindowSize =
     Stdout.write! "\u(1b)[999C\u(1b)[999B"

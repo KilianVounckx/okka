@@ -4,6 +4,8 @@ module [
     right,
     up,
     down,
+    hide,
+    show,
 ]
 
 goto : { row : U16, column : U16 } -> Str
@@ -25,3 +27,9 @@ up = \amount ->
 down : U16 -> Str
 down = \amount ->
     "\u(1b)[$(Num.toStr amount)B"
+
+hide : Str
+hide = "\u(1b)[?25l"
+
+show : Str
+show = "\u(1b)[?25h"
