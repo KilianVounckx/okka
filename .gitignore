@@ -2,4 +2,5 @@
 !*/
 !.gitignore
 
-!/app/**/*.roc
+!/package/**/*.roc
+!/examples/**/*.roc

@@ -1,5 +1,6 @@
 app [main] {
     cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.11.0/SY4WWMhWQ9NvQgvIthcv15AUeA7rAIJHAHgiaSHGhdY.tar.br",
+    okka: "../package/main.roc",
 }
 
 import cli.Stdin
@@ -7,8 +8,8 @@ import cli.Stdout
 import cli.Task exposing [Task]
 import cli.Tty
 
-import Cursor
-import Event exposing [Event]
+import okka.Cursor
+import okka.Event exposing [Event]
 
 main : Task {} _
 main =
@@ -49,12 +50,23 @@ init = \{ rows, columns } -> {
 update : Model, Event -> Result Model [Quit]
 update = \model, event ->
     when event is
-        Key Esc -> Err Quit
-        Key Left -> Ok { model & x: Num.subSaturated model.x 1 }
-        Key Right -> Ok { model & x: Num.min (model.x + 1) (model.columns - 1) }
-        Key Up -> Ok { model & y: Num.subSaturated model.y 1 }
-        Key Down -> Ok { model & y: Num.min (model.y + 1) (model.rows - 1) }
-        _ -> Ok model
+        Key Esc | Key (Char 'q') ->
+            Err Quit
+
+        Key Left | Key (Char 'h') ->
+            Ok { model & x: Num.subSaturated model.x 1 }
+
+        Key Right | Key (Char 'l') ->
+            Ok { model & x: Num.min (model.x + 1) (model.columns - 1) }
+
+        Key Up | Key (Char 'k') ->
+            Ok { model & y: Num.subSaturated model.y 1 }
+
+        Key Down | Key (Char 'j') ->
+            Ok { model & y: Num.min (model.y + 1) (model.rows - 1) }
+
+        _ ->
+            Ok model
 
 render : Model -> Str
 render = \model ->
