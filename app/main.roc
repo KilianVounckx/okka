@@ -27,7 +27,7 @@ main =
                     Err Quit ->
                         Task.ok (Done {})
 
-            Err Unsupported ->
+            Err _ ->
                 Task.ok (Step editor)
     Tty.disableRawMode!
 

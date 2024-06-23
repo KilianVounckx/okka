@@ -40,14 +40,14 @@ KeyEvent : [
     Delete,
     Insert,
     F U8,
-    Char U8,
+    Char U32,
     Alt U8,
     Ctrl U8,
     Null,
     Esc,
 ]
 
-fromBytes : List U8 -> Result Event [Unsupported]
+fromBytes : List U8 -> Result Event [Unsupported, InvalidCodepoint]
 fromBytes = \bytes ->
     when bytes is
         [0x1b, 'O', c] if 'P' <= c && c <= 'S' -> Ok (Key (F (1 + c - 'P')))
@@ -60,8 +60,7 @@ fromBytes = \bytes ->
         [c] if 0x01 <= c && c <= 0x1a -> Ok (Key (Ctrl (c - 0x1 + 'a')))
         [c] if 0x1c <= c && c <= 0x1f -> Ok (Key (Ctrl (c - 0x1c + '4')))
         [0] -> Ok (Key Null)
-        [c] -> Ok (Key (Char c))
-        _ -> Err Unsupported
+        _ -> parseUtf8Codepoint bytes |> Result.map (\c -> Key (Char c))
 
 parseCsi : List U8 -> Result Event [Unsupported]
 parseCsi = \bytes ->
@@ -113,3 +112,48 @@ parseCsi = \bytes ->
         ['H'] -> Ok (Key Home)
         ['Z'] -> Ok (Key Backtab)
         _ -> Err Unsupported
+
+parseUtf8Codepoint : List U8 -> Result U32 [InvalidCodepoint]
+parseUtf8Codepoint = \bytes ->
+    when bytes is
+        [c] if Num.bitwiseAnd c 0x80 == 0 ->
+            Ok (Num.toU32 c)
+
+        [c1, c2] if (Num.bitwiseAnd c1 0xe0 == 0xc0)
+        &&
+        (Num.bitwiseAnd c2 0xc0 == 0x80) ->
+            n1 = Num.toU32 (Num.bitwiseAnd c1 0x1f)
+            n2 = Num.toU32 (Num.bitwiseAnd c2 0x3f)
+            Num.shiftLeftBy n1 6
+            |> Num.bitwiseXor n2
+            |> Ok
+
+        [c1, c2, c3] if (Num.bitwiseAnd c1 0xf0 == 0xe0)
+        && (Num.bitwiseAnd c2 0xc0 == 0x80)
+        &&
+        (Num.bitwiseAnd c3 0xc0 == 0x80) ->
+            n1 = Num.toU32 (Num.bitwiseAnd c1 0x0f)
+            n2 = Num.toU32 (Num.bitwiseAnd c2 0x3f)
+            n3 = Num.toU32 (Num.bitwiseAnd c3 0x3f)
+            Num.shiftLeftBy n1 (6 + 6)
+            |> Num.bitwiseXor (Num.shiftLeftBy n2 6)
+            |> Num.bitwiseXor n3
+            |> Ok
+
+        [c1, c2, c3, c4] if (Num.bitwiseAnd c1 0xf8 == 0xf0)
+        && (Num.bitwiseAnd c2 0xc0 == 0x80)
+        && (Num.bitwiseAnd c3 0xc0 == 0x80)
+        &&
+        (Num.bitwiseAnd c4 0xc0 == 0x80) ->
+            n1 = Num.toU32 (Num.bitwiseAnd c1 0x07)
+            n2 = Num.toU32 (Num.bitwiseAnd c2 0x3f)
+            n3 = Num.toU32 (Num.bitwiseAnd c3 0x3f)
+            n4 = Num.toU32 (Num.bitwiseAnd c4 0x3f)
+            Num.shiftLeftBy n1 (6 + 6 + 6)
+            |> Num.bitwiseXor (Num.shiftLeftBy n2 (6 + 6))
+            |> Num.bitwiseXor (Num.shiftLeftBy n3 6)
+            |> Num.bitwiseXor n4
+            |> Ok
+
+        _ ->
+            Err InvalidCodepoint
