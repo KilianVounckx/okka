@@ -1,6 +1,6 @@
 app [main] {
     cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.11.0/SY4WWMhWQ9NvQgvIthcv15AUeA7rAIJHAHgiaSHGhdY.tar.br",
-    okka: "../package/main.roc",
+    okka: "https://github.com/KilianVounckx/okka/releases/download/0.1.0/HI2Em-RnNzEl7Tlgs1Zzrp0feGMPwNvTSpTj1YrqSNY.tar.br",
 }
 
 import cli.Stdin
