@@ -57,7 +57,7 @@ toStr = \s ->
         Blink On -> "5"
         InvertColor On -> "7"
         Strikethrough On -> "9"
-        Bold Off -> "21"
+        Bold Off -> "22"
         Faint Off -> "22"
         Italic Off -> "23"
         Underline Off -> "24"
