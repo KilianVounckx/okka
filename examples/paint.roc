@@ -40,7 +40,7 @@ Model : {
     rows : U16,
     columns : U16,
     brush : [Up, Down],
-    color : Color,
+    color : [Color Color, Erase],
     clear : Bool,
     x : U16,
     y : U16,
@@ -50,8 +50,8 @@ init : { rows : U16, columns : U16 } -> Model
 init = \{ rows, columns } -> {
     rows,
     columns,
-    brush: Down,
-    color: Red,
+    brush: Up,
+    color: Color Black,
     clear: Bool.false,
     x: 0,
     y: 0,
@@ -74,25 +74,25 @@ update = \model0, event ->
             Ok { model1 & y: Num.subSaturated model1.y 1 }
 
         Key Down | Key (Char 'j') ->
-            Ok { model1 & y: Num.min (model1.y + 1) (model1.rows - 1) }
+            Ok { model1 & y: Num.min (model1.y + 1) (model1.rows - 3) }
 
         Key (Char ' ') ->
             Ok (toggleBrush model1)
 
-        Key (Char 'c') ->
-            Ok (toggleColor model1)
-
+        Key (Char 'E') | Key (Char 'e') -> Ok { model1 & color: Erase }
+        Key (Char '1') -> Ok { model1 & color: Color Black }
+        Key (Char '2') -> Ok { model1 & color: Color Red }
+        Key (Char '3') -> Ok { model1 & color: Color Green }
+        Key (Char '4') -> Ok { model1 & color: Color Yellow }
+        Key (Char '5') -> Ok { model1 & color: Color Blue }
+        Key (Char '6') -> Ok { model1 & color: Color Magenta }
+        Key (Char '7') -> Ok { model1 & color: Color Cyan }
+        Key (Char '8') -> Ok { model1 & color: Color White }
         Key Delete ->
             Ok ({ model1 & clear: Bool.true })
 
         _ ->
             Ok model1
-
-toggleColor : Model -> Model
-toggleColor = \model ->
-    when model.color is
-        Red -> { model & color: Blue }
-        _ -> { model & color: Red }
 
 toggleBrush : Model -> Model
 toggleBrush = \model ->
@@ -103,28 +103,191 @@ toggleBrush = \model ->
 render : Model -> Str
 render = \model ->
     if model.clear then
-        Clear.all
+        Str.joinWith [Clear.all, renderHelp model] ""
     else
-        when model.brush is
-            Down ->
+        when (model.brush, model.color) is
+            (Down, Color color) ->
                 Str.joinWith
                     [
+                        renderHelp model,
                         Cursor.hide,
-                        Cursor.goto { row: model.y, column: model.x },
-                        Style.style [Background model.color],
+                        Cursor.goto { row: model.y + 2, column: model.x },
+                        Style.style [Background color],
                         " ",
                         Style.style [Background Default],
                     ]
                     ""
 
-            Up ->
+            (Down, Erase) ->
                 Str.joinWith
                     [
+                        renderHelp model,
+                        Cursor.show,
+                        Cursor.goto { row: model.y + 2, column: model.x },
+                        Style.style [Background Default],
+                        " ",
+                    ]
+                    ""
+
+            (Up, _) ->
+                Str.joinWith
+                    [
+                        renderHelp model,
                         Cursor.hide,
-                        Cursor.goto { row: model.y, column: model.x },
+                        Cursor.goto { row: model.y + 2, column: model.x },
                         Cursor.show,
                     ]
                     ""
+
+renderHelp : Model -> Str
+renderHelp = \model ->
+    Str.joinWith
+        [
+            Cursor.hide,
+            # Tool
+            Cursor.goto { row: 0, column: 0 },
+            "Colors ",
+            Style.style [Background Black],
+            "   ",
+            Style.style [Background Red],
+            "   ",
+            Style.style [Background Green],
+            "   ",
+            Style.style [Background Yellow],
+            "   ",
+            Style.style [Background Blue],
+            "   ",
+            Style.style [Background Magenta],
+            "   ",
+            Style.style [Background Cyan],
+            "   ",
+            Style.style [Background White],
+            "   ",
+            Style.style [Reset],
+            "  Eraser",
+            "  Brush up/down",
+            "  Clear",
+            "  Quit",
+            # Button
+            Cursor.goto { row: 1, column: 0 },
+            "       ",
+            renderColorPickerNumbers model,
+            "      SPACE    ",
+            "   DEL ",
+            "   ESC",
+        ]
+        ""
+
+renderColorPickerNumbers : Model -> Str
+renderColorPickerNumbers = \model ->
+    when model.color is
+        Erase ->
+            Str.joinWith
+                [
+                    " 1  2  3  4  5  6  7  8 ",
+                    "     ",
+                    Style.style [Background Red, Bold On],
+                    "E",
+                    Style.style [Reset],
+                    "  ",
+                ]
+                ""
+
+        Color Black ->
+            Str.joinWith
+                [
+                    Style.style [Foreground Black, Bold On],
+                    " 1 ",
+                    Style.style [Reset],
+                    " 2  3  4  5  6  7  8 ",
+                    "     E  ",
+                ]
+                ""
+
+        Color Red ->
+            Str.joinWith
+                [
+                    " 1 ",
+                    Style.style [Foreground Red, Bold On],
+                    " 2 ",
+                    Style.style [Reset],
+                    " 3  4  5  6  7  8 ",
+                    "     E  ",
+                ]
+                ""
+
+        Color Green ->
+            Str.joinWith
+                [
+                    " 1  2 ",
+                    Style.style [Foreground Green, Bold On],
+                    " 3 ",
+                    Style.style [Reset],
+                    " 4  5  6  7  8 ",
+                    "     E  ",
+                ]
+                ""
+
+        Color Yellow ->
+            Str.joinWith
+                [
+                    " 1  2  3 ",
+                    Style.style [Foreground Yellow, Bold On],
+                    " 4 ",
+                    Style.style [Reset],
+                    " 5  6  7  8 ",
+                    "     E  ",
+                ]
+                ""
+
+        Color Blue ->
+            Str.joinWith
+                [
+                    " 1  2  3  4 ",
+                    Style.style [Foreground Blue, Bold On],
+                    " 5 ",
+                    Style.style [Reset],
+                    " 6  7  8 ",
+                    "     E  ",
+                ]
+                ""
+
+        Color Magenta ->
+            Str.joinWith
+                [
+                    " 1  2  3  4  5 ",
+                    Style.style [Foreground Magenta, Bold On],
+                    " 6 ",
+                    Style.style [Reset],
+                    " 7  8 ",
+                    "     E  ",
+                ]
+                ""
+
+        Color Cyan ->
+            Str.joinWith
+                [
+                    " 1  2  3  4  5  6 ",
+                    Style.style [Foreground Cyan, Bold On],
+                    " 7 ",
+                    Style.style [Reset],
+                    " 8 ",
+                    "     E  ",
+                ]
+                ""
+
+        Color White ->
+            Str.joinWith
+                [
+                    " 1  2  3  4  5  6  7 ",
+                    Style.style [Foreground White, Bold On],
+                    " 8 ",
+                    Style.style [Reset],
+                    "     E  ",
+                ]
+                ""
+
+        Color color -> crash "unpickable color: $(Inspect.toStr color)"
 
 # https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#window-size-the-hard-way
 getWindowSize : Task { rows : U16, columns : U16 } _
