@@ -8,7 +8,7 @@ import cli.Stdout
 import cli.Task exposing [Task]
 import cli.Tty
 
-import okka.Color exposing [Color]
+import okka.Style exposing [Color]
 import okka.Clear
 import okka.Cursor
 import okka.Event exposing [Event]
@@ -111,9 +111,9 @@ render = \model ->
                     [
                         Cursor.hide,
                         Cursor.goto { row: model.y, column: model.x },
-                        Color.background model.color,
+                        Style.style [Background model.color],
                         " ",
-                        Color.background Reset,
+                        Style.style [Background Default],
                     ]
                     ""
 
