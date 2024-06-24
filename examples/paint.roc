@@ -165,7 +165,7 @@ renderHelp = \model ->
             "   ",
             Style.style [Reset],
             "  Eraser",
-            "  Brush up/down",
+            renderBrushHelp model,
             "  Clear",
             "  Quit",
             # Button
@@ -177,6 +177,30 @@ renderHelp = \model ->
             "   ESC",
         ]
         ""
+
+renderBrushHelp : Model -> Str
+renderBrushHelp = \model ->
+    when model.brush is
+        Up ->
+            Str.joinWith
+                [
+                    "  Brush ",
+                    Style.style [Bold On],
+                    "up",
+                    Style.style [Bold Off],
+                    "/down",
+                ]
+                ""
+
+        Down ->
+            Str.joinWith
+                [
+                    "  Brush up/",
+                    Style.style [Bold On],
+                    "down",
+                    Style.style [Bold Off],
+                ]
+                ""
 
 renderColorPickerNumbers : Model -> Str
 renderColorPickerNumbers = \model ->
